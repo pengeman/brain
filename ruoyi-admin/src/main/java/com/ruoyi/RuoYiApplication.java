@@ -1,0 +1,29 @@
+package com.ruoyi;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
+
+/**
+ * 启动程序
+ * 
+ * @author ruoyi
+ */
+@SpringBootApplication(scanBasePackages = {"com.ruoyi", "com.peng","org.peng"}, exclude = { DataSourceAutoConfiguration.class })
+public class RuoYiApplication
+{
+    public static void main(String[] args)
+    {
+        SpringApplication.run(RuoYiApplication.class, args);
+        System.out.println("(♥◠‿◠)ﾉﾞ  若依启动成功   ლ(´ڡ`ლ)ﾞ  \n" +
+                " .111111111111111111 \n" +
+                " |  _ _   \\      \\   \\   /  /    \n" +
+                " | ( ' )  |       \\  _. /  '       \n" +
+                " |(_ o _) /        _( )_ .'         \n" +
+                " | (_,_).' __  ___(_ o _)'          \n" +
+                " |  |\\ \\  |  ||   |(_,_)'         \n" +
+                " |  | \\ `'   /|   `-'  /           \n" +
+                " |  |  \\    /  \\      /           \n" +
+                " ''-'   `'-'    `-..-'              ");
+    }
+}
