@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org">
+<head>
+	<th:block th:include="include :: header('色彩闪烁反应')" />
+	<link th:href="@{/brain/css/brain-game.css}" rel="stylesheet"/>
+	<style>
+		.react-stage { width: 100%; max-width: 480px; height: 320px; margin: 0 auto; border-radius: 14px; display: flex; align-items: center; justify-content: center; cursor: pointer; user-select: none; transition: background .1s; }
+		.react-stage.ready { background: #f0f4ff; border: 2px dashed #d5deff; }
+		.react-stage.hit { background: #22b573; }
+		.react-stage.miss { background: #ef5a7a; }
+		.react-stage .stage-text { font-size: 30px; font-weight: 700; color: #5a6270; }
+		.react-stage.hit .stage-text, .react-stage.miss .stage-text { color: #fff; }
+		.target-tip { text-align: center; margin-top: 12px; font-size: 16px; color: #5a6270; }
+		.target-swatch { display: inline-block; width: 18px; height: 18px; border-radius: 4px; vertical-align: middle; margin: 0 4px; }
+		.avg-time { font-size: 40px; font-weight: 700; color: #4e6ef2; }
+	</style>
+</head>
+<body class="gray-bg game-page">
+	<div class="wrapper wrapper-content animated fadeInRight">
+		<div class="container-fluid">
+			<div class="game-header">
+				<div>
+					<h3><i class="fa fa-bolt"></i> 色彩闪烁反应</h3>
+					<p>每轮随机出现一种颜色，只有出现目标色时才能点击，反应越快分越高！</p>
+				</div>
+				<div class="banner-nav">
+					<a th:href="@{/index}"><i class="fa fa-home"></i> 首页</a>
+					<th:block th:if="${isLogin}">
+						<a class="user-name" th:href="@{/system/user/profile}"><i class="fa fa-user-o"></i> [[${loginName}]]</a>
+						<a th:href="@{/system/user/profile}"><i class="fa fa-user-circle-o"></i> 我的</a>
+						<a th:href="@{/logout}"><i class="fa fa-sign-out"></i> 退出</a>
+					</th:block>
+					<th:block th:unless="${isLogin}">
+						<a th:href="@{/login}"><i class="fa fa-sign-in"></i> 登录</a>
+						<a th:href="@{/register}"><i class="fa fa-user-plus"></i> 注册</a>
+					</th:block>
+				</div>
+			</div>
+
+			<div class="game-panel">
+				<div class="game-toolbar">
+					<div class="stat">第 <b id="round">0</b> / 10 轮</div>
+					<div class="stat">正确：<b id="hit-count">0</b> 次</div>
+					<button class="btn btn-game" id="btn-start"><i class="fa fa-play"></i> 开始</button>
+				</div>
+
+				<div class="target-tip">
+					目标色：<span class="target-swatch" id="target-swatch"></span>
+					<span id="target-name"></span>
+				</div>
+
+				<div class="react-stage ready" id="stage">
+					<div class="stage-text" id="stage-text">点击开始游戏</div>
+				</div>
+
+				<div class="result-box" id="result">
+					<div class="text-center">
+						<div class="big-score" id="score-val">0</div>
+						<div class="msg" id="score-msg">平均反应：<span class="avg-time" id="avg-time">0</span> 毫秒</div>
+						<button class="btn btn-game mt10" onclick="restart()"><i class="fa fa-refresh"></i> 再来一局</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<th:block th:include="include :: footer" />
+	<script th:src="@{/brain/js/brain-game.js}"></script>
+	<script>
+		// 颜色池:名称 -> 色值
+		var COLORS = { '红': '#e74c3c', '蓝': '#3498db', '绿': '#2ecc71', '黄': '#f1c40f', '紫': '#9b59b6', '橙': '#e67e22' };
+		var round = 0, totalRounds = 10, hits = 0, targetColor = '', currentColor = '', isTarget = false, ready = false, appearTime = 0;
+		var reactionTimes = [], playing = false, stageTimer = null;
+
+		function randomColor() {
+			var keys = Object.keys(COLORS);
+			return keys[Math.floor(Math.random() * keys.length)];
+		}
+
+		function startRound() {
+			round++;
+			$('#round').text(round);
+			targetColor = randomColor();
+			$('#target-swatch').css('background', COLORS[targetColor]);
+			$('#target-name').text(targetColor);
+
+			// 预备状态 1-2 秒后闪现颜色
+			$('#stage').removeClass('hit miss').addClass('ready');
+			$('#stage-text').text('...');
+			ready = false;
+			setTimeout(function () {
+				if (!playing) { return; }
+				isTarget = (Math.random() < 0.6);
+				currentColor = isTarget ? targetColor : randomColor();
+				while (!isTarget && currentColor === targetColor) { currentColor = randomColor(); }
+				$('#stage').removeClass('ready').css('background', COLORS[currentColor]);
+				$('#stage-text').text(isTarget ? '点击！' : '不要点');
+				ready = true;
+				appearTime = Date.now();
+				// 2 秒未点击自动算作失误,进入下一轮
+				stageTimer = setTimeout(function () {
+					if (ready && playing) { miss(); }
+				}, 2000);
+			}, 1000 + Math.random() * 1200);
+		}
+
+		function clickStage() {
+			if (!playing) { layer.msg('请先点击开始', {icon: 0}); return; }
+			if (!ready) { return; }
+			clearTimeout(stageTimer);
+			if (isTarget) {
+				var rt = Date.now() - appearTime;
+				reactionTimes.push(rt);
+				hits++;
+				$('#hit-count').text(hits);
+				$('#stage').addClass('hit').removeClass('ready');
+				$('#stage-text').text('反应 ' + rt + ' ms');
+				ready = false;
+				setTimeout(nextAfter, 700);
+			} else {
+				miss();
+			}
+		}
+
+		function miss() {
+			clearTimeout(stageTimer);
+			ready = false;
+			$('#stage').addClass('miss').removeClass('ready');
+			$('#stage-text').text('点错啦！');
+			setTimeout(nextAfter, 700);
+		}
+
+		function nextAfter() {
+			if (!playing) { return; }
+			if (round >= totalRounds) { finish(); } else { startRound(); }
+		}
+
+		function startGame() {
+			playing = true; round = 0; hits = 0; reactionTimes = [];
+			$('#result').hide();
+			$('#btn-start').prop('disabled', true).text('游戏中...');
+			$('#hit-count').text('0');
+			startRound();
+		}
+
+		function finish() {
+			playing = false;
+			clearTimeout(stageTimer);
+			var avg = reactionTimes.length ? Math.round(reactionTimes.reduce(function (a, b) { return a + b; }, 0) / reactionTimes.length) : 0;
+			var score = hits * 100 + Math.max(0, 1000 - avg * 2);
+			$('#score-val').text(score);
+			$('#avg-time').text(avg);
+			$('#score-msg').html('正确 ' + hits + ' 次，平均反应 <span class="avg-time">' + avg + '</span> 毫秒');
+			$('#result').show();
+			$('#btn-start').prop('disabled', false).text('重新开始');
+			$('#stage').removeClass('ready hit miss').css('background', '#f0f4ff');
+			$('#stage-text').text('完成！');
+			BrainGame.saveScore({
+				gameType: 'reaction', testType: '反应力', score: score,
+				duration: 0, level: 1, extra: JSON.stringify({ hits: hits, avg: avg }),
+				onSuccess: function () { $('#score-msg').append('（成绩已保存）'); }
+			});
+		}
+
+		function restart() {
+			playing = false;
+			clearTimeout(stageTimer);
+			$('#btn-start').prop('disabled', false).text('开始');
+			startGame();
+		}
+
+		$(function () {
+			$('#btn-start').on('click', startGame);
+			$('#stage').on('click', clickStage);
+		});
+	</script>
+</body>
+</html>

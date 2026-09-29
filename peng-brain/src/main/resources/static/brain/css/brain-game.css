@@ -1,0 +1,19 @@
+/* 智域大脑 · 游戏页公共样式 */
+.game-page { background: #f4f6f9; }
+.game-header { background: linear-gradient(135deg, #4e6ef2 0%, #7c5cf0 100%); color: #fff; border-radius: 12px; padding: 18px 24px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.game-header h3 { margin: 0 0 4px; font-weight: 600; }
+.game-header p { margin: 0; opacity: .85; }
+.game-header .banner-nav { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 16px; }
+.game-header .banner-nav a { color: #fff; text-decoration: none; font-size: 14px; opacity: .92; }
+.game-header .banner-nav a:hover { opacity: 1; text-decoration: underline; }
+.game-header .banner-nav a.user-name { font-weight: 600; opacity: 1; }
+.game-panel { background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.06); padding: 20px; }
+.game-toolbar { margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.game-toolbar .stat { font-size: 15px; color: #5a6270; }
+.game-toolbar .stat b { color: #4e6ef2; font-size: 18px; }
+.btn-game { background: #4e6ef2; border-color: #4e6ef2; color: #fff; border-radius: 20px; padding: 6px 22px; }
+.btn-game:hover, .btn-game:focus { background: #3d5be0; border-color: #3d5be0; color: #fff; }
+.btn-game:disabled { background: #a9b6f7; border-color: #a9b6f7; cursor: not-allowed; }
+.result-box { background: #f0f4ff; border: 1px solid #d5deff; border-radius: 10px; padding: 16px; margin-top: 14px; display: none; }
+.result-box .big-score { font-size: 42px; font-weight: 700; color: #4e6ef2; }
+.result-box .msg { color: #5a6270; margin-top: 6px; }

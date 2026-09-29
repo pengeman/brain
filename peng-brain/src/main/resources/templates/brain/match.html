@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org">
+<head>
+	<th:block th:include="include :: header('翻牌配对')" />
+	<link th:href="@{/brain/css/brain-game.css}" rel="stylesheet"/>
+	<style>
+		.match-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; max-width: 480px; margin: 0 auto; }
+		.match-cell { aspect-ratio: 1; border-radius: 10px; cursor: pointer; perspective: 600px; }
+		.match-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .4s; }
+		.match-cell.flip .match-inner { transform: rotateY(180deg); }
+		.match-face { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; border-radius: 10px; backface-visibility: hidden; font-size: 40px; }
+		.match-back { background: linear-gradient(135deg, #4e6ef2, #7c5cf0); color: #fff; }
+		.match-front { background: #fff; border: 2px solid #e3e8f5; transform: rotateY(180deg); }
+		.match-cell.matched .match-front { background: #e8f9f0; border-color: #22b573; }
+		.match-cell.matched { cursor: default; }
+	</style>
+</head>
+<body class="gray-bg game-page">
+	<div class="wrapper wrapper-content animated fadeInRight">
+		<div class="container-fluid">
+			<div class="game-header">
+				<div>
+					<h3><i class="fa fa-cards"></i> 翻牌配对</h3>
+					<p>8 对图案藏在牌背后面，每次翻开两张，找到相同图案即可消除，用时越短分越高。</p>
+				</div>
+				<div class="banner-nav">
+					<a th:href="@{/index}"><i class="fa fa-home"></i> 首页</a>
+					<th:block th:if="${isLogin}">
+						<a class="user-name" th:href="@{/system/user/profile}"><i class="fa fa-user-o"></i> [[${loginName}]]</a>
+						<a th:href="@{/system/user/profile}"><i class="fa fa-user-circle-o"></i> 我的</a>
+						<a th:href="@{/logout}"><i class="fa fa-sign-out"></i> 退出</a>
+					</th:block>
+					<th:block th:unless="${isLogin}">
+						<a th:href="@{/login}"><i class="fa fa-sign-in"></i> 登录</a>
+						<a th:href="@{/register}"><i class="fa fa-user-plus"></i> 注册</a>
+					</th:block>
+				</div>
+			</div>
+                    
+
+			<div class="game-panel">
+				<div class="game-toolbar">
+					<div class="stat">用时：<b id="elapsed">0.0</b> 秒</div>
+					<div class="stat">配对：<b id="matched">0</b> / 8</div>
+					<div class="stat">翻错：<b id="mismatch">0</b> 次</div>
+					<button class="btn btn-game" id="btn-start"><i class="fa fa-play"></i> 开始</button>
+				</div>
+				<div class="match-grid" id="grid"></div>
+				<div class="result-box" id="result">
+					<div class="text-center">
+						<div class="big-score" id="score-val">0</div>
+						<div class="msg" id="score-msg"></div>
+						<button class="btn btn-game mt10" onclick="restart()"><i class="fa fa-refresh"></i> 再来一局</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<th:block th:include="include :: footer" />
+	<script th:src="@{/brain/js/brain-game.js}"></script>
+	<script>
+		var ICONS = ['fa-heart', 'fa-star', 'fa-bolt', 'fa-leaf', 'fa-moon', 'fa-sun', 'fa-cloud', 'fa-gem'];
+		var timer = null, startTime = 0, matchedCount = 0, mismatchCount = 0, playing = false, firstCard = null, lock = false;
+
+		function initGrid() {
+			var cards = [];
+			for (var i = 0; i < ICONS.length; i++) { cards.push(i, i); }
+			BrainGame.shuffle(cards);
+			var html = '';
+			$.each(cards, function (idx, iconIdx) {
+				html += '<div class="match-cell" data-icon="' + iconIdx + '">' +
+					'<div class="match-inner">' +
+					'<div class="match-face match-back"><i class="fa fa-question"></i></div>' +
+					'<div class="match-face match-front"><i class="fa ' + ICONS[iconIdx] + '"></i></div>' +
+					'</div></div>';
+			});
+			$('#grid').html(html);
+		}
+
+		function startGame() {
+			playing = true; matchedCount = 0; mismatchCount = 0; firstCard = null; lock = false; startTime = Date.now();
+			$('#result').hide();
+			$('#btn-start').prop('disabled', true);
+			$('#matched').text('0'); $('#mismatch').text('0');
+			initGrid();
+			// 开局先给 2 秒记忆时间
+			$('#grid').addClass('flip-all');
+			$('.match-cell').addClass('flip');
+			setTimeout(function () {
+				$('.match-cell').removeClass('flip');
+				$('#grid').removeClass('flip-all');
+			}, 2000);
+			timer = setInterval(function () {
+				$('#elapsed').text(((Date.now() - startTime) / 1000).toFixed(1));
+			}, 100);
+		}
+
+		function clickCell(e) {
+			if (!playing || lock) { return; }
+			var $cell = $(e.currentTarget);
+			if ($cell.hasClass('flip') || $cell.hasClass('matched')) { return; }
+			$cell.addClass('flip');
+			if (firstCard === null) {
+				firstCard = $cell;
+			} else {
+				lock = true;
+				var a = firstCard.attr('data-icon'), b = $cell.attr('data-icon');
+				if (a === b) {
+					firstCard.addClass('matched'); $cell.addClass('matched');
+					matchedCount++;
+					$('#matched').text(matchedCount);
+					firstCard = null; lock = false;
+					if (matchedCount === ICONS.length) { finish(); }
+				} else {
+					mismatchCount++;
+					$('#mismatch').text(mismatchCount);
+					var $first = firstCard;
+					firstCard = null;
+					setTimeout(function () {
+						$first.removeClass('flip'); $cell.removeClass('flip');
+						lock = false;
+					}, 800);
+				}
+			}
+		}
+
+		function finish() {
+			playing = false;
+			clearInterval(timer);
+			var duration = Math.round((Date.now() - startTime) / 1000);
+			var score = Math.max(10, Math.round(1000 - duration * 8 - mismatchCount * 40));
+			$('#score-val').text(score);
+			$('#score-msg').text('用时 ' + duration + ' 秒，翻错 ' + mismatchCount + ' 次');
+			$('#result').show();
+			$('#btn-start').prop('disabled', false);
+			BrainGame.saveScore({
+				gameType: 'match', testType: '记忆力', score: score,
+				duration: duration, level: 1, extra: JSON.stringify({ mismatch: mismatchCount }),
+				onSuccess: function () { $('#score-msg').append('（成绩已保存）'); }
+			});
+		}
+
+		function restart() {
+			clearInterval(timer);
+			$('#elapsed').text('0.0');
+			$('#btn-start').prop('disabled', false);
+			startGame();
+		}
+
+		$(function () {
+			initGrid();
+			$('#grid').on('click', '.match-cell', clickCell);
+			$('#btn-start').on('click', startGame);
+		});
+	</script>
+</body>
+</html>

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org">
+<head>
+	<th:block th:include="include :: header('图形规律推理')" />
+	<link th:href="@{/brain/css/brain-game.css}" rel="stylesheet"/>
+	<style>
+		.seq-box { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; min-height: 90px; margin: 10px 0 20px; }
+		.seq-item { width: 72px; height: 72px; display: flex; align-items: center; justify-content: center; background: #f0f4ff; border: 2px solid #d5deff; border-radius: 12px; font-size: 34px; }
+		.seq-item.missing { background: #fff8e8; border-color: #f8c84b; border-style: dashed; }
+		.seq-item.missing i { color: #f8c84b; font-size: 22px; }
+		.opt-box { display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; }
+		.opt-item { width: 76px; height: 76px; display: flex; align-items: center; justify-content: center; background: #fff; border: 2px solid #e3e8f5; border-radius: 12px; font-size: 36px; cursor: pointer; transition: all .15s; }
+		.opt-item:hover { border-color: #4e6ef2; transform: scale(1.06); }
+		.opt-item.wrong { background: #fdeaea; border-color: #ef5a7a; animation: shake .3s; }
+		@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+	</style>
+</head>
+<body class="gray-bg game-page">
+	<div class="wrapper wrapper-content animated fadeInRight">
+		<div class="container-fluid">
+			<div class="game-header">
+				<div>
+					<h3><i class="fa fa-shapes"></i> 图形规律推理</h3>
+					<p>观察图形序列的变化规律，从 4 个选项中选出正确的下一项。</p>
+				</div>
+				<div class="banner-nav">
+					<a th:href="@{/index}"><i class="fa fa-home"></i> 首页</a>
+					<th:block th:if="${isLogin}">
+						<a class="user-name" th:href="@{/system/user/profile}"><i class="fa fa-user-o"></i> [[${loginName}]]</a>
+						<a th:href="@{/system/user/profile}"><i class="fa fa-user-circle-o"></i> 我的</a>
+						<a th:href="@{/logout}"><i class="fa fa-sign-out"></i> 退出</a>
+					</th:block>
+					<th:block th:unless="${isLogin}">
+						<a th:href="@{/login}"><i class="fa fa-sign-in"></i> 登录</a>
+						<a th:href="@{/register}"><i class="fa fa-user-plus"></i> 注册</a>
+					</th:block>
+				</div>
+			</div>
+
+			<div class="game-panel">
+				<div class="game-toolbar">
+					<div class="stat"><span class="level-tag" id="level-tag" style="display:inline-block;background:#f0f4ff;color:#4e6ef2;padding:4px 14px;border-radius:20px;font-weight:600;">第 1 题</span></div>
+					<div class="stat">答对：<b id="correct-count">0</b> 题</div>
+					<button class="btn btn-game" id="btn-start"><i class="fa fa-play"></i> 开始</button>
+				</div>
+
+				<div class="seq-box" id="seq-box"></div>
+
+				<div class="opt-box" id="opt-box"></div>
+
+				<div class="result-box" id="result">
+					<div class="text-center">
+						<div class="big-score" id="score-val">0</div>
+						<div class="msg" id="score-msg"></div>
+						<button class="btn btn-game mt10" onclick="restart()"><i class="fa fa-refresh"></i> 再来一局</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<th:block th:include="include :: footer" />
+	<script th:src="@{/brain/js/brain-game.js}"></script>
+	<script>
+		// 图形池(用 FontAwesome 图标表示图形)
+		var POOL = ['fa-circle', 'fa-square', 'fa-triangle', 'fa-diamond', 'fa-star', 'fa-heart', 'fa-bolt', 'fa-leaf'];
+		var questionIndex = 0, correctCount = 0, playing = false, startTime = 0, totalTime = 0, roundStart = 0, curAnswer = null;
+
+		/**
+		 * 生成一题:序列由 4 个图标 + 1 个空位组成
+		 * 规律:某一图形出现次数按固定规律变化,或者按顺序轮换
+		 */
+		function genQuestion() {
+			var kind = Math.floor(Math.random() * 3);
+			var seq = [], answer = null;
+			if (kind === 0) {
+				// 规律1:单图形重复次数递增 (1,2,3,4,?) -> 5
+				var icon = POOL[Math.floor(Math.random() * POOL.length)];
+				var times = 1 + Math.floor(Math.random() * 3); // 起始重复次数
+				for (var i = 0; i < 4; i++) { seq.push(repeat(icon, times + i)); }
+				answer = repeat(icon, times + 4);
+			} else if (kind === 1) {
+				// 规律2:图形轮换 (A,B,C,D,?) -> A
+				var icons = BrainGame.shuffle(POOL.slice(0, 4));
+				for (var j = 0; j < 4; j++) { seq.push(icons[j]); }
+				answer = icons[0];
+			} else {
+				// 规律3:图形对换 (A,A,B,B,C,C,?) -> D,D
+				var iconA = POOL[Math.floor(Math.random() * POOL.length)];
+				var iconB = POOL[Math.floor(Math.random() * POOL.length)];
+				var iconC = POOL[Math.floor(Math.random() * POOL.length)];
+				seq = [iconA, iconA, iconB, iconB, iconC, iconC];
+				answer = repeat(iconC, 2);
+			}
+			return { seq: seq, answer: answer };
+		}
+
+		function repeat(icon, n) {
+			var arr = [];
+			for (var i = 0; i < n; i++) { arr.push(icon); }
+			return arr;
+		}
+
+		function renderQuestion(q) {
+			curAnswer = q.answer;
+			var seqHtml = '';
+			$.each(q.seq, function (i, icon) {
+				var parts = icon.split('|');
+				var html = '';
+				$.each(parts, function (_, p) { html += '<i class="fa ' + p + '" style="margin:0 2px;"></i>'; });
+				seqHtml += '<div class="seq-item">' + html + '</div>';
+			});
+			seqHtml += '<div class="seq-item missing"><i class="fa fa-question"></i></div>';
+			$('#seq-box').html(seqHtml);
+
+			// 4 个选项:正确答案 + 3 个干扰项
+			var opts = [q.answer];
+			var optPool = [];
+			$.each(q.seq, function (_, icon) {
+				$.each(icon.split('|'), function (_, p) { optPool.push(p); });
+			});
+			while (opts.length < 4) {
+				var cand = optPool[Math.floor(Math.random() * optPool.length)];
+				if (opts.indexOf(cand) === -1) { opts.push(cand); }
+			}
+			BrainGame.shuffle(opts);
+			var optHtml = '';
+			$.each(opts, function (_, icon) {
+				optHtml += '<div class="opt-item" data-ans="' + icon + '"><i class="fa ' + icon + '"></i></div>';
+			});
+			$('#opt-box').html(optHtml);
+			roundStart = Date.now();
+		}
+
+		function startGame() {
+			playing = true; questionIndex = 0; correctCount = 0; totalTime = 0; startTime = Date.now();
+			$('#result').hide();
+			$('#btn-start').prop('disabled', true).text('游戏中...');
+			$('#correct-count').text('0');
+			nextQuestion();
+		}
+
+		function nextQuestion() {
+			questionIndex++;
+			$('#level-tag').text('第 ' + questionIndex + ' 题');
+			renderQuestion(genQuestion());
+		}
+
+		function pick(e) {
+			if (!playing) { layer.msg('请先点击开始', {icon: 0}); return; }
+			var $item = $(e.currentTarget);
+			if ($item.hasClass('wrong')) { return; }
+			var picked = $item.attr('data-ans');
+			totalTime += (Date.now() - roundStart) / 1000;
+			if (picked === curAnswer) {
+				correctCount++;
+				$('#correct-count').text(correctCount);
+				// 第 5 题后结束
+				if (questionIndex >= 5) { finish(); } else { nextQuestion(); }
+			} else {
+				$item.addClass('wrong');
+				var el = e.currentTarget;
+				setTimeout(function () { $(el).removeClass('wrong'); }, 400);
+			}
+		}
+
+		function finish() {
+			playing = false;
+			var duration = Math.round(totalTime);
+			var score = correctCount * 200;
+			$('#score-val').text(score);
+			$('#score-msg').text('共 5 题，答对 ' + correctCount + ' 题，用时 ' + duration + ' 秒');
+			$('#result').show();
+			$('#btn-start').prop('disabled', false).text('重新开始');
+			BrainGame.saveScore({
+				gameType: 'pattern', testType: '逻辑力', score: score,
+				duration: duration, level: 1, extra: JSON.stringify({ correct: correctCount, total: 5 }),
+				onSuccess: function () { $('#score-msg').append('（成绩已保存）'); }
+			});
+		}
+
+		function restart() {
+			playing = false;
+			$('#btn-start').prop('disabled', false).text('开始');
+			startGame();
+		}
+
+		$(function () {
+			$('#btn-start').on('click', startGame);
+			$('#opt-box').on('click', '.opt-item', pick);
+		});
+	</script>
+</body>
+</html>

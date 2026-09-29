@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.brain.mapper.BrainTestResultMapper">
+
+    <resultMap type="com.ruoyi.brain.domain.BrainTestResult" id="BrainTestResultResult">
+        <result property="id"    column="id"    />
+        <result property="userId"    column="user_id"    />
+        <result property="gameType"    column="game_type"    />
+        <result property="testType"    column="test_type"    />
+        <result property="score"    column="score"    />
+        <result property="duration"    column="duration"    />
+        <result property="level"    column="level"    />
+        <result property="extra"    column="extra"    />
+        <result property="testTime"    column="test_time"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateTime"    column="update_time"    />
+    </resultMap>
+
+    <insert id="insertBrainTestResult" parameterType="com.ruoyi.brain.domain.BrainTestResult" useGeneratedKeys="true" keyProperty="id">
+        insert into brain_test_result (
+            <if test="userId != null">user_id,</if>
+            <if test="gameType != null and gameType != ''">game_type,</if>
+            <if test="testType != null and testType != ''">test_type,</if>
+            <if test="score != null">score,</if>
+            <if test="duration != null">duration,</if>
+            <if test="level != null">level,</if>
+            <if test="extra != null and extra != ''">extra,</if>
+            <if test="testTime != null">test_time,</if>
+            create_time
+        )values(
+            <if test="userId != null">#{userId},</if>
+            <if test="gameType != null and gameType != ''">#{gameType},</if>
+            <if test="testType != null and testType != ''">#{testType},</if>
+            <if test="score != null">#{score},</if>
+            <if test="duration != null">#{duration},</if>
+            <if test="level != null">#{level},</if>
+            <if test="extra != null and extra != ''">#{extra},</if>
+            <if test="testTime != null">#{testTime},</if>
+            sysdate()
+        )
+    </insert>
+
+    <select id="selectRecentByUserId" resultMap="BrainTestResultResult">
+        select id, user_id, game_type, test_type, score, duration, level, extra, test_time, create_time, update_time
+        from brain_test_result
+        where user_id = #{userId}
+        order by test_time desc, id desc
+        limit #{limit}
+    </select>
+
+</mapper>

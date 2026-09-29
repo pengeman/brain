@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org">
+<head>
+	<th:block th:include="include :: header('数独变体')" />
+	<link th:href="@{/brain/css/brain-game.css}" rel="stylesheet"/>
+	<style>
+		.sudoku-board { max-width: 420px; margin: 0 auto; background: #fff; border: 3px solid #4e6ef2; border-radius: 10px; overflow: hidden; }
+		.sudoku-row { display: grid; grid-template-columns: repeat(4, 1fr); }
+		.sudoku-cell { height: 74px; display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: 600; color: #4e6ef2; border: 1px solid #e3e8f5; cursor: pointer; user-select: none; position: relative; }
+		.sudoku-cell.given { color: #333; background: #f7f9ff; cursor: default; }
+		.sudoku-cell.selected { background: #fff3d6 !important; }
+		.sudoku-cell.highlight { background: #eef2ff; }
+		.sudoku-cell.wrong { color: #ef5a7a; background: #fdeaea; }
+		/* 宫分隔线 */
+		.sudoku-row:nth-child(2) .sudoku-cell { border-bottom: 3px solid #4e6ef2; }
+		.sudoku-cell:nth-child(2) { border-right: 3px solid #4e6ef2; }
+		.num-pad { display: flex; justify-content: center; gap: 12px; margin-top: 18px; }
+		.num-btn { width: 58px; height: 58px; border-radius: 12px; background: #fff; border: 2px solid #e3e8f5; font-size: 24px; font-weight: 600; color: #4e6ef2; cursor: pointer; transition: all .15s; }
+		.num-btn:hover { border-color: #4e6ef2; background: #f0f4ff; }
+		.num-btn.eraser { color: #ef5a7a; }
+	</style>
+</head>
+<body class="gray-bg game-page">
+	<div class="wrapper wrapper-content animated fadeInRight">
+		<div class="container-fluid">
+			<div class="game-header">
+				<div>
+					<h3><i class="fa fa-grid"></i> 数独变体</h3>
+					<p>4×4 轻量数独：每行、每列、每个 2×2 宫都包含 1-4。填满即过关！</p>
+				</div>
+				<div class="banner-nav">
+					<a th:href="@{/index}"><i class="fa fa-home"></i> 首页</a>
+					<th:block th:if="${isLogin}">
+						<a class="user-name" th:href="@{/system/user/profile}"><i class="fa fa-user-o"></i> [[${loginName}]]</a>
+						<a th:href="@{/system/user/profile}"><i class="fa fa-user-circle-o"></i> 我的</a>
+						<a th:href="@{/logout}"><i class="fa fa-sign-out"></i> 退出</a>
+					</th:block>
+					<th:block th:unless="${isLogin}">
+						<a th:href="@{/login}"><i class="fa fa-sign-in"></i> 登录</a>
+						<a th:href="@{/register}"><i class="fa fa-user-plus"></i> 注册</a>
+					</th:block>
+				</div>
+			</div>
+
+			<div class="game-panel">
+				<div class="game-toolbar">
+					<div class="stat">用时：<b id="elapsed">0.0</b> 秒</div>
+					<div class="stat">已填：<b id="filled">0</b> / 16</div>
+					<button class="btn btn-game" id="btn-start"><i class="fa fa-play"></i> 开始</button>
+				</div>
+
+				<div class="sudoku-board" id="board"></div>
+
+				<div class="num-pad" id="num-pad"></div>
+
+				<div class="result-box" id="result">
+					<div class="text-center">
+						<div class="big-score" id="score-val">0</div>
+						<div class="msg" id="score-msg"></div>
+						<button class="btn btn-game mt10" onclick="restart()"><i class="fa fa-refresh"></i> 再来一局</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<th:block th:include="include :: footer" />
+	<script th:src="@{/brain/js/brain-game.js}"></script>
+	<script>
+		var N = 4, GRID = null, GIVEN = null, solution = null;
+		var timer = null, startTime = 0, selected = -1, wrongCells = {}, playing = false;
+
+		/**
+		 * 生成一个随机的完整 4x4 数独解
+		 * 用回溯填充并随机打乱候选顺序
+		 */
+		function genSolution() {
+			var grid = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]];
+			var order = BrainGame.shuffle([1,2,3,4]);
+			function isValid(r, c, v) {
+				for (var i = 0; i < N; i++) {
+					if (grid[r][i] === v || grid[i][c] === v) { return false; }
+				}
+				var br = Math.floor(r / 2) * 2, bc = Math.floor(c / 2) * 2;
+				for (var i2 = 0; i2 < 2; i2++) {
+					for (var j2 = 0; j2 < 2; j2++) {
+						if (grid[br + i2][bc + j2] === v) { return false; }
+					}
+				}
+				return true;
+			}
+			function fill(pos) {
+				if (pos >= N * N) { return true; }
+				var r = Math.floor(pos / N), c = pos % N;
+				for (var k = 0; k < N; k++) {
+					var v = order[k];
+					if (isValid(r, c, v)) {
+						grid[r][c] = v;
+						if (fill(pos + 1)) { return true; }
+						grid[r][c] = 0;
+					}
+				}
+				return false;
+			}
+			fill(0);
+			return grid;
+		}
+
+		/** 统计解的数量(最多数到2) */
+		function countSolutions(grid, limit) {
+			var count = 0;
+			function solve() {
+				if (count >= limit) { return; }
+				var pos = -1;
+				for (var i = 0; i < N * N && pos < 0; i++) {
+					if (grid[Math.floor(i / N)][i % N] === 0) { pos = i; }
+				}
+				if (pos < 0) { count++; return; }
+				var r = Math.floor(pos / N), c = pos % N;
+				for (var v = 1; v <= N; v++) {
+					if (isValidAt(grid, r, c, v)) {
+						grid[r][c] = v;
+						solve();
+						grid[r][c] = 0;
+					}
+				}
+			}
+			function isValidAt(g, r, c, v) {
+				for (var i = 0; i < N; i++) {
+					if (g[r][i] === v || g[i][c] === v) { return false; }
+				}
+				var br = Math.floor(r / 2) * 2, bc = Math.floor(c / 2) * 2;
+				for (var i2 = 0; i2 < 2; i2++) {
+					for (var j2 = 0; j2 < 2; j2++) {
+						if (g[br + i2][bc + j2] === v) { return false; }
+					}
+				}
+				return true;
+			}
+			solve();
+			return count;
+		}
+
+		/** 挖空生成谜题(保证唯一解) */
+		function genPuzzle() {
+			var sol = genSolution();
+			var puzzle = sol.map(function (row) { return row.slice(); });
+			var cells = BrainGame.shuffle([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]);
+			var removed = 0;
+			for (var idx = 0; idx < cells.length && removed < 7; idx++) {
+				var pos = cells[idx];
+				var r = Math.floor(pos / N), c = pos % N;
+				var backup = puzzle[r][c];
+				puzzle[r][c] = 0;
+				var test = puzzle.map(function (row) { return row.slice(); });
+				if (countSolutions(test, 2) === 1) {
+					removed++;
+				} else {
+					puzzle[r][c] = backup;
+				}
+			}
+			return { puzzle: puzzle, solution: sol };
+		}
+
+		function renderBoard() {
+			var html = '';
+			for (var r = 0; r < N; r++) {
+				html += '<div class="sudoku-row">';
+				for (var c = 0; c < N; c++) {
+					var v = GRID[r][c], given = GIVEN[r][c] === 1;
+					html += '<div class="sudoku-cell' + (given ? ' given' : '') + '" data-pos="' + (r * N + c) + '">' +
+						(v > 0 ? v : '') + '</div>';
+				}
+				html += '</div>';
+			}
+			$('#board').html(html);
+		}
+
+		function renderNumPad() {
+			var html = '';
+			for (var v = 1; v <= N; v++) {
+				html += '<button class="num-btn" data-v="' + v + '">' + v + '</button>';
+			}
+			html += '<button class="num-btn eraser" data-v="0"><i class="fa fa-eraser"></i></button>';
+			$('#num-pad').html(html);
+		}
+
+		function startGame() {
+			playing = true; selected = -1; wrongCells = {}; startTime = Date.now();
+			var g = genPuzzle();
+			GRID = g.puzzle; solution = g.solution;
+			GIVEN = GRID.map(function (row) { return row.map(function (v) { return v > 0 ? 1 : 0; }); });
+			$('#result').hide();
+			$('#btn-start').prop('disabled', true);
+			updateFilled();
+			renderBoard();
+			renderNumPad();
+			timer = setInterval(function () {
+				$('#elapsed').text(((Date.now() - startTime) / 1000).toFixed(1));
+			}, 100);
+		}
+
+		function updateFilled() {
+			var count = 0;
+			for (var r = 0; r < N; r++) {
+				for (var c = 0; c < N; c++) { if (GRID[r][c] > 0) { count++; } }
+			}
+			$('#filled').text(count);
+		}
+
+		function selectCell(e) {
+			if (!playing) { layer.msg('请先点击开始', {icon: 0}); return; }
+			var pos = parseInt($(e.currentTarget).attr('data-pos'), 10);
+			if (GIVEN[Math.floor(pos / N)][pos % N] === 1) { return; }
+			selected = pos;
+			$('.sudoku-cell').removeClass('selected highlight');
+			$(e.currentTarget).addClass('selected');
+			// 高亮同行同列同宫
+			var r = Math.floor(pos / N), c = pos % N;
+			$('.sudoku-cell').each(function () {
+				var p = parseInt($(this).attr('data-pos'), 10);
+				var pr = Math.floor(p / N), pc = p % N;
+				if (pr === r || pc === c || (Math.floor(pr / 2) === Math.floor(r / 2) && Math.floor(pc / 2) === Math.floor(c / 2))) {
+					if (GIVEN[pr][pc] !== 1) { $(this).addClass('highlight'); }
+				}
+			});
+		}
+
+		function inputNum(e) {
+			if (!playing || selected < 0) { layer.msg('请先选择一个空格', {icon: 0}); return; }
+			var v = parseInt($(e.currentTarget).attr('data-v'), 10);
+			var r = Math.floor(selected / N), c = selected % N;
+			GRID[r][c] = v;
+			var cell = $('.sudoku-cell[data-pos="' + selected + '"]');
+			cell.text(v > 0 ? v : '');
+			cell.removeClass('wrong');
+			delete wrongCells[selected];
+			if (v > 0 && v !== solution[r][c]) {
+				cell.addClass('wrong');
+				wrongCells[selected] = true;
+			}
+			updateFilled();
+			checkWin();
+		}
+
+		function checkWin() {
+			for (var r = 0; r < N; r++) {
+				for (var c = 0; c < N; c++) {
+					if (GRID[r][c] !== solution[r][c]) { return; }
+				}
+			}
+			finish();
+		}
+
+		function finish() {
+			playing = false;
+			clearInterval(timer);
+			var duration = Math.round((Date.now() - startTime) / 1000);
+			var wrongCount = Object.keys(wrongCells).length;
+			var score = Math.max(10, Math.round(600 - duration * 5 - wrongCount * 25));
+			$('#score-val').text(score);
+			$('#score-msg').text('用时 ' + duration + ' 秒，填错 ' + wrongCount + ' 格');
+			$('#result').show();
+			$('#btn-start').prop('disabled', false);
+			BrainGame.saveScore({
+				gameType: 'sudoku', testType: '逻辑力', score: score,
+				duration: duration, level: 1, extra: JSON.stringify({ wrong: wrongCount }),
+				onSuccess: function () { $('#score-msg').append('（成绩已保存）'); }
+			});
+		}
+
+		function restart() {
+			clearInterval(timer);
+			$('#elapsed').text('0.0');
+			$('#btn-start').prop('disabled', false);
+			startGame();
+		}
+
+		$(function () {
+			$('#btn-start').on('click', startGame);
+			$('#board').on('click', '.sudoku-cell', selectCell);
+			$('#num-pad').on('click', '.num-btn', inputNum);
+		});
+	</script>
+</body>
+</html>

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org">
+<head>
+	<th:block th:include="include :: header('数字记忆')" />
+	<link th:href="@{/brain/css/brain-game.css}" rel="stylesheet"/>
+	<style>
+		.num-display { font-size: 64px; font-weight: 700; color: #4e6ef2; text-align: center; min-height: 100px; line-height: 100px; letter-spacing: 8px; }
+		.num-answer { text-align: center; }
+		.num-answer input { width: 320px; max-width: 90%; text-align: center; font-size: 30px; letter-spacing: 6px; padding: 10px; border: 2px solid #d5deff; border-radius: 10px; outline: none; }
+		.num-answer input:focus { border-color: #4e6ef2; }
+		.level-tag { display: inline-block; background: #f0f4ff; color: #4e6ef2; padding: 4px 14px; border-radius: 20px; font-weight: 600; }
+	</style>
+</head>
+<body class="gray-bg game-page">
+	<div class="wrapper wrapper-content animated fadeInRight">
+		<div class="container-fluid">
+			<div class="game-header">
+				<div>
+					<h3><i class="fa fa-hashtag"></i> 数字记忆</h3>
+					<p>数字串一闪而过，凭记忆输入正确即可晋级，级别越高数字越多！</p>
+				</div>
+				<div class="banner-nav">
+					<a th:href="@{/index}"><i class="fa fa-home"></i> 首页</a>
+					<th:block th:if="${isLogin}">
+						<a class="user-name" th:href="@{/system/user/profile}"><i class="fa fa-user-o"></i> [[${loginName}]]</a>
+						<a th:href="@{/system/user/profile}"><i class="fa fa-user-circle-o"></i> 我的</a>
+						<a th:href="@{/logout}"><i class="fa fa-sign-out"></i> 退出</a>
+					</th:block>
+					<th:block th:unless="${isLogin}">
+						<a th:href="@{/login}"><i class="fa fa-sign-in"></i> 登录</a>
+						<a th:href="@{/register}"><i class="fa fa-user-plus"></i> 注册</a>
+					</th:block>
+				</div>
+			</div>
+
+			<div class="game-panel">
+				<div class="game-toolbar">
+					<div class="stat"><span class="level-tag" id="level-tag">第 1 关</span></div>
+					<div class="stat">答对：<b id="correct-count">0</b> 题</div>
+					<button class="btn btn-game" id="btn-start"><i class="fa fa-play"></i> 开始</button>
+				</div>
+
+				<div class="num-display" id="num-display">—</div>
+
+				<div class="num-answer" id="answer-box" style="display:none;">
+					<input type="text" id="answer-input" maxlength="15" placeholder="输入你记住的数字"/>
+					<div class="mt10">
+						<button class="btn btn-game" id="btn-submit"><i class="fa fa-check"></i> 确认</button>
+					</div>
+				</div>
+
+				<div class="result-box" id="result">
+					<div class="text-center">
+						<div class="big-score" id="score-val">0</div>
+						<div class="msg" id="score-msg"></div>
+						<button class="btn btn-game mt10" onclick="restart()"><i class="fa fa-refresh"></i> 再来一局</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<th:block th:include="include :: footer" />
+	<script th:src="@{/brain/js/brain-game.js}"></script>
+	<script>
+		var level = 1, correctCount = 0, currentNum = '', playing = false, totalTime = 0, roundStart = 0;
+
+		function genNumber(len) {
+			var s = '';
+			for (var i = 0; i < len; i++) { s += Math.floor(Math.random() * 10); }
+			return s;
+		}
+
+		function startRound() {
+			var len = Math.min(level + 2, 10);
+			currentNum = genNumber(len);
+			$('#answer-box').hide();
+			$('#answer-input').val('');
+			$('#num-display').text(currentNum).css('color', '#4e6ef2');
+			roundStart = Date.now();
+			// 数字显示时长:每多一位多0.8秒,最少1.5秒
+			var showMs = Math.max(1500, len * 800);
+			setTimeout(function () {
+				if (!playing) { return; }
+				$('#num-display').text('? ? ?').css('color', '#c0c8dc');
+				$('#answer-box').show();
+				$('#answer-input').focus();
+			}, showMs);
+		}
+
+		function startGame() {
+			playing = true; level = 1; correctCount = 0; totalTime = 0;
+			$('#result').hide();
+			$('#btn-start').prop('disabled', true).text('游戏中...');
+			$('#correct-count').text('0');
+			updateLevelTag();
+			startRound();
+		}
+
+		function updateLevelTag() {
+			$('#level-tag').text('第 ' + level + ' 关（' + Math.min(level + 2, 10) + ' 位数字）');
+		}
+
+		function submitAnswer() {
+			var answer = $('#answer-input').val().trim();
+			if (answer === '') { layer.msg('请先输入数字', {icon: 0}); return; }
+			totalTime += (Date.now() - roundStart) / 1000;
+			if (answer === currentNum) {
+				correctCount++;
+				$('#correct-count').text(correctCount);
+				level++;
+				updateLevelTag();
+				startRound();
+			} else {
+				finish();
+			}
+		}
+
+		function finish() {
+			playing = false;
+			$('#answer-box').hide();
+			$('#num-display').text('—');
+			var duration = Math.round(totalTime);
+			// 得分 = 答对数 × 100 + 关卡加成
+			var score = correctCount * 100 + (level - 1) * 50;
+			$('#score-val').text(score);
+			$('#score-msg').text('共答对 ' + correctCount + ' 题，用时 ' + duration + ' 秒');
+			$('#result').show();
+			$('#btn-start').prop('disabled', false).text('重新开始');
+			BrainGame.saveScore({
+				gameType: 'memory', testType: '记忆力', score: score,
+				duration: duration, level: level, extra: JSON.stringify({ correct: correctCount }),
+				onSuccess: function () { $('#score-msg').append('（成绩已保存）'); }
+			});
+		}
+
+		function restart() {
+			playing = false;
+			$('#btn-start').prop('disabled', false).text('开始');
+			startGame();
+		}
+
+		$(function () {
+			$('#btn-start').on('click', startGame);
+			$('#btn-submit').on('click', submitAnswer);
+			$('#answer-input').on('keydown', function (e) {
+				if (e.keyCode === 13) { submitAnswer(); }
+			});
+		});
+	</script>
+</body>
+</html>
