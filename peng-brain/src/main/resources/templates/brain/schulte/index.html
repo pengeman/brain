@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org">
+<head>
+	<th:block th:include="include :: header('智域大脑 · 游戏大厅')" />
+	<style>
+		body { background: #f4f6f9; }
+		.brain-banner { background: linear-gradient(135deg, #4e6ef2 0%, #7c5cf0 100%); color: #fff; border-radius: 12px; padding: 28px 30px; margin-bottom: 22px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+		.brain-banner h2 { margin: 0 0 8px; font-weight: 600; }
+		.brain-banner p { margin: 0; opacity: .85; }
+		.brain-banner .banner-nav { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 18px; }
+		.brain-banner .banner-nav a { color: #fff; text-decoration: none; font-size: 15px; opacity: .92; }
+		.brain-banner .banner-nav a:hover { opacity: 1; text-decoration: underline; }
+		.brain-banner .banner-nav a.user-name { font-weight: 600; opacity: 1; }
+		.game-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.06); transition: all .25s; cursor: pointer; display: block; color: #333; margin-bottom: 18px; overflow: hidden; }
+		.game-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(78,110,242,.18); color: #333; text-decoration: none; }
+		.game-card .g-icon { height: 110px; display: flex; align-items: center; justify-content: center; font-size: 52px; color: #fff; }
+		.game-card .g-body { padding: 14px 16px 16px; }
+		.game-card .g-name { font-size: 17px; font-weight: 600; margin: 0 0 4px; }
+		.game-card .g-desc { color: #8a93a6; font-size: 13px; margin: 0 0 10px; min-height: 36px; }
+		.tag { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 12px; color: #fff; margin-right: 6px; }
+		.tag-focus { background: #f8a13b; } .tag-memory { background: #4e6ef2; } .tag-logic { background: #22b573; } .tag-reaction { background: #ef5a7a; }
+		.btn-play { float: right; margin-top: -4px; }
+		.history-box { background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.06); padding: 18px 20px; }
+		.history-box h4 { margin: 0 0 12px; font-weight: 600; }
+		.history-box table { margin: 0; }
+		.history-box th { font-weight: 600; color: #5a6270; }
+		.empty-tip { color: #a0a8b8; text-align: center; padding: 24px 0; }
+		.avatar-badge { display: inline-block; width: 26px; height: 26px; border-radius: 50%; background: #7c5cf0; color: #fff; text-align: center; line-height: 26px; font-size: 12px; margin-right: 6px; }
+	</style>
+</head>
+<body class="gray-bg">
+	<div class="wrapper wrapper-content animated fadeInRight">
+		<div class="container-fluid">
+					<!-- 顶部横幅 -->
+				<div class="brain-banner">
+					<div>
+					 <h2><i class="fa fa-bolt"></i> 智域大脑 · 智力训练</h2>
+					 <p>每天 10 分钟，提升记忆力、专注力、逻辑力与反应力 —— 选择一款游戏开始训练吧！</p>
+					</div>
+					<div class="banner-nav">
+					 <a th:href="@{/index}"><i class="fa fa-home"></i> 首页</a>
+					 <th:block th:if="${isLogin}">
+					  <a class="user-name" th:href="@{/system/user/profile}"><i class="fa fa-user-o"></i> [[${loginName}]]</a>
+					  <a th:href="@{/system/user/profile}"><i class="fa fa-user-circle-o"></i> 我的</a>
+					  <a th:href="@{/system/user/profile#setting}"><i class="fa fa-cog"></i> 设置</a>
+					  <a th:href="@{/logout}"><i class="fa fa-sign-out"></i> 退出</a>
+					 </th:block>
+					 <th:block th:unless="${isLogin}">
+					  <a th:href="@{/login}"><i class="fa fa-sign-in"></i> 登录</a>
+					  <a th:href="@{/register}"><i class="fa fa-user-plus"></i> 注册</a>
+					 </th:block>
+					</div>
+				</div>
+
+			<!-- 游戏卡片 -->
+			<div class="row" id="game-list">
+				<div class="col-sm-6 col-md-4" th:each="g : ${games}">
+					<a class="game-card" th:href="@{${g.url}}" th:attr="data-url=${g.url}">
+						<div class="g-icon" th:style="'background:' + ${g.color}">
+							<i class="fa" th:classappend="${g.icon}"></i>
+						</div>
+						<div class="g-body">
+							<p class="g-name" th:text="${g.name}"></p>
+							<p class="g-desc" th:text="${g.desc}"></p>
+							<span class="tag" th:classappend="${g.tagClass}" th:text="${g.tag}"></span>
+							<button class="btn btn-primary btn-sm btn-play"><i class="fa fa-play"></i> 开始</button>
+						</div>
+					</a>
+				</div>
+			</div>
+
+			<!-- 最近成绩 -->
+			<div class="history-box">
+				<h4><i class="fa fa-history"></i> 我的最近成绩</h4>
+				<table class="table table-hover">
+					<thead>
+						<tr>
+							<th>游戏</th>
+							<th>类型</th>
+							<th>得分</th>
+							<th>用时</th>
+							<th>难度</th>
+							<th>时间</th>
+						</tr>
+					</thead>
+					<tbody id="history-body">
+						<tr><td colspan="6" class="empty-tip">加载中...</td></tr>
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
+
+	<th:block th:include="include :: footer" />
+	<script>
+		var GAME_NAMES = {
+			'schulte': '舒尔特方格', 'memory': '数字记忆', 'match': '翻牌配对',
+			'pattern': '图形规律', 'reaction': '色彩反应', 'sudoku': '数独变体'
+		};
+		$(function () {
+			$.get(ctx + 'brain/test/history', function (res) {
+				var $tbody = $('#history-body');
+				if (res.code !== 0 || !res.data || !res.data.length) {
+					$tbody.html('<tr><td colspan="6" class="empty-tip">还没有成绩，快去玩一局吧！</td></tr>');
+					return;
+				}
+				var html = '';
+				$.each(res.data, function (i, r) {
+					var name = GAME_NAMES[r.gameType] || r.testType || r.gameType;
+					var time = r.testTime ? new Date(r.testTime.replace(/-/g, '/')).toLocaleString() : '';
+					html += '<tr>' +
+						'<td>' + name + '</td>' +
+						'<td>' + (r.testType || '-') + '</td>' +
+						'<td><b>' + (r.score == null ? '-' : r.score) + '</b></td>' +
+						'<td>' + (r.duration != null ? r.duration + ' 秒' : '-') + '</td>' +
+						'<td>' + (r.level || 1) + '</td>' +
+						'<td>' + time + '</td>' +
+						'</tr>';
+				});
+				$tbody.html(html);
+			});
+		});
+	</script>
+</body>
+</html>
